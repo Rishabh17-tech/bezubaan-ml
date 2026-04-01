@@ -9,7 +9,7 @@ from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
 
 # ================== CONFIG ==================
-API_KEY = os.getenv("API_KEY", "bezubaan_secret_123")
+API_KEY = os.getenv("API_KEY", "bezubaan_secret_0107")
 MODEL_PATH = "animal_classifier_model.h5"
 LABELS_PATH = "labels.json"
 TEMP_DIR = "temp"
@@ -20,18 +20,24 @@ app = FastAPI()
 os.makedirs(TEMP_DIR, exist_ok=True)
 
 # Load model safely
+model = None
 try:
     model = load_model(MODEL_PATH, compile=False)
     print("✅ Model loaded successfully")
 except Exception as e:
     print(f"❌ Model loading failed: {e}")
-    raise e
 
-# Load labels
-with open(LABELS_PATH, "r") as f:
-    labels = json.load(f)
+# Load labels safely
+try:
+    with open(LABELS_PATH, "r") as f:
+        labels = json.load(f)
 
-labels = {v: k for k, v in labels.items()}
+    # auto-detect format
+    if isinstance(list(labels.keys())[0], str):
+        labels = {v: k for k, v in labels.items()}
+except Exception as e:
+    print(f"❌ Labels loading failed: {e}")
+    labels = {}
 
 # ================== HELPERS ==================
 def validate_image(path):
@@ -53,6 +59,12 @@ def preprocess(path):
 def home():
     return {"message": "Bezubaan ML API is LIVE 🚀"}
 
+@app.get("/health")
+def health():
+    return {
+        "status": "ok" if model is not None else "model_not_loaded"
+    }
+
 @app.post("/predict")
 async def predict(
     file: UploadFile = File(...),
@@ -62,15 +74,19 @@ async def predict(
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API Key")
 
+    # 🚨 Ensure model loaded
+    if model is None:
+        raise HTTPException(status_code=500, detail="Model not loaded")
+
     file_id = str(uuid.uuid4())
     file_path = os.path.join(TEMP_DIR, f"{file_id}.jpg")
 
     try:
-        # save file
+        # Save file
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # validate image
+        # Validate image
         if not validate_image(file_path):
             return {
                 "animal": None,
@@ -79,17 +95,17 @@ async def predict(
                 "message": "Uploaded file is not a valid image"
             }
 
-        # preprocess
+        # Preprocess
         img_array = preprocess(file_path)
 
-        # prediction
-        preds = model.predict(img_array)
+        # Prediction (faster way)
+        preds = model(img_array, training=False).numpy()
+
         confidence = float(np.max(preds))
         class_idx = int(np.argmax(preds))
 
         label = labels.get(class_idx, "unknown")
 
-        # invalid detection
         if label == "not_animal":
             return {
                 "animal": None,
