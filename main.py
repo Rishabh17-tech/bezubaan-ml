@@ -9,8 +9,8 @@ from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
 
 # ================== CONFIG ==================
-API_KEY = "bezubaan_secret_123"  # change later to env variable
-MODEL_PATH = "animal_classifier_model.h5"
+API_KEY = os.getenv("API_KEY", "bezubaan_secret_123")
+MODEL_PATH = "animal_model_fixed.h5"   # ✅ updated model
 LABELS_PATH = "labels.json"
 TEMP_DIR = "temp"
 
@@ -19,14 +19,18 @@ app = FastAPI()
 
 os.makedirs(TEMP_DIR, exist_ok=True)
 
-# Load model
-model = load_model(MODEL_PATH, compile=False)
+# Load model safely
+try:
+    model = load_model(MODEL_PATH, compile=False)
+    print("✅ Model loaded successfully")
+except Exception as e:
+    print(f"❌ Model loading failed: {e}")
+    raise e
 
 # Load labels
 with open(LABELS_PATH, "r") as f:
     labels = json.load(f)
 
-# reverse mapping
 labels = {v: k for k, v in labels.items()}
 
 # ================== HELPERS ==================
@@ -43,7 +47,12 @@ def preprocess(path):
     img_array = image.img_to_array(img) / 255.0
     return np.expand_dims(img_array, axis=0)
 
-# ================== API ==================
+# ================== ROUTES ==================
+
+@app.get("/")
+def home():
+    return {"message": "Bezubaan ML API is LIVE 🚀"}
+
 @app.post("/predict")
 async def predict(
     file: UploadFile = File(...),
@@ -53,7 +62,6 @@ async def predict(
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API Key")
 
-    # unique file name
     file_id = str(uuid.uuid4())
     file_path = os.path.join(TEMP_DIR, f"{file_id}.jpg")
 
@@ -79,9 +87,9 @@ async def predict(
         confidence = float(np.max(preds))
         class_idx = int(np.argmax(preds))
 
-        label = labels[class_idx]
+        label = labels.get(class_idx, "unknown")
 
-        # invalid animal detection
+        # invalid detection
         if label == "not_animal":
             return {
                 "animal": None,
