@@ -20,7 +20,7 @@ app = FastAPI()
 os.makedirs(TEMP_DIR, exist_ok=True)
 
 # Load model
-model = load_model(MODEL_PATH)
+model = load_model(MODEL_PATH, compile=False)
 
 # Load labels
 with open(LABELS_PATH, "r") as f:
