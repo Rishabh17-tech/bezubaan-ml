@@ -10,7 +10,7 @@ from tensorflow.keras.preprocessing import image
 
 # ================== CONFIG ==================
 API_KEY = os.getenv("API_KEY", "bezubaan_secret_0107")
-MODEL_PATH = "animal_classifier_model.h5"
+MODEL_PATH = "animal_classifier_model.keras"
 LABELS_PATH = "labels.json"
 TEMP_DIR = "temp"
 
