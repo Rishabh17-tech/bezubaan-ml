@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY main.py .
 COPY requirements.txt .
-COPY animal_classifier_model.h5 .
+COPY animal_classifier_model.keras .
 COPY labels.json .
 
 RUN pip install --no-cache-dir -r requirements.txt
